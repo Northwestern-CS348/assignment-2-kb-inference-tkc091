@@ -116,6 +116,68 @@ class KnowledgeBase(object):
             print("Invalid ask:", fact.statement)
             return []
 
+
+
+    def retract_recursive_helper(self, fact_or_rule):
+        
+        if isinstance(fact_or_rule, Fact):
+            fact = self._get_fact(fact_or_rule)
+
+            if not fact.supported_by:
+		
+                for sr in fact.supports_rules:
+                    supr = self._get_rule(sr)
+
+                    for checking in supr.supported_by:
+                        if checking[0] == fact:
+                            supr.supported_by.remove(checking)
+
+                    self.retract_recursive_helper(supr)
+
+                for sf in fact.supports_facts:
+                    supf = self._get_fact(sf)
+
+                    for checking in supf.supported_by:
+                        if checking[0] == fact:
+                            supf.supported_by.remove(checking)
+                        
+                        self.retract_recursive_helper(supf)
+
+                self.facts.remove(fact)
+
+            else:
+                fact.asserted = False
+
+
+        if isinstance(fact_or_rule, Rule):
+            if fact_or_rule in self.rules:
+                rule = self._get_rule(fact_or_rule)
+
+                if len(rule.supported_by) ==0:
+
+                    if not rule.asserted:
+
+                        for sr in rule.supports_rules:
+                            supr = self._get_rule(sr)
+
+                            for checking in supr.supported_by:
+                                if checking[1] == rule:
+                                   supr.supported_by.remove(checking)
+
+                            self.retract_recursive_helper(supr)
+
+                        for sf in rule.supports_facts:
+                            supf = self._get_fact(sf)
+                            
+                            for checking in supf.supported_by:
+                                if checking[1] == rule:
+                                    supf.supported_by.remove(checking)
+
+                            self.retract_recursive_helper(supf)
+
+                        self.rules.remove(rule)
+
+
     def kb_retract(self, fact):
         """Retract a fact from the KB
 
@@ -128,7 +190,11 @@ class KnowledgeBase(object):
         printv("Retracting {!r}", 0, verbose, [fact])
         ####################################################
         # Student code goes here
-        
+
+        if isinstance(fact,Fact):
+
+            self.retract_recursive_helper(fact)
+
 
 class InferenceEngine(object):
     def fc_infer(self, fact, rule, kb):
@@ -146,3 +212,41 @@ class InferenceEngine(object):
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
+
+        checker = match(fact.statement, rule.lhs[0])
+
+        if checker:
+            if len(rule.lhs) == 1:
+                newfact = Fact(instantiate(rule.rhs,checker),[[fact,rule]])
+                fact.supports_facts.append(newfact)
+                rule.supports_facts.append(newfact)
+                kb.kb_add(newfact)
+            
+            else:
+                newlsh = []
+
+                for arule in rule.lhs[1:]:
+                    newlsh.append(instantiate(arule,checker))
+                    
+                newrhs = instantiate(rule.rhs,checker)
+                newrule = Rule([newlsh,newrhs],[[fact,rule]])
+                fact.supports_rules.append(newrule)
+                rule.supports_rules.append(newrule)
+                kb.kb_add(newrule)
+                
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
